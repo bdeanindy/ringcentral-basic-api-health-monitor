@@ -1,0 +1,46 @@
+{
+  "name": "rc-server-web-basic",
+  "version": "0.1.0",
+  "authors": [
+    "Benjamin Dean <benjamin@benjamindean.com>"
+  ],
+  "description": "Simple app to consume RingCentral Platform resources",
+  "main": "",
+  "moduleType": [
+    "amd",
+    "es6",
+    "globals",
+    "node"
+  ],
+  "keywords": [
+    "RingCentral",
+    "RingCentral",
+    "Platform",
+    "RingCentral",
+    "for",
+    "Developers"
+  ],
+  "license": "MIT",
+  "homepage": "",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "public/vendor",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "bootstrap": "^3.3.6",
+    "jquery": "~2.1.4",
+    "fetch": "~0.10.1",
+    "ringcentral": "~2.0.1",
+    "ringcentral-web-phone": "^0.3.0",
+    "socket.io": "^1.4.5",
+    "sip.js": "0.7.4"
+  },
+  "resolutions": {
+    "fetch": "master"
+  }
+}
