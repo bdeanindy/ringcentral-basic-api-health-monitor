@@ -87,16 +87,16 @@ schedule.scheduleJob(rule4, testPass);
 
 // Define the API requests we want to execute according to the scheduling rule
 function testPass() {
-    if( platform().auth().accessTokenValid() ) {
-        platform().get('/', {}).then(function(response){});
-        platform().get('/v1.0', {}).then(function(response){});
-        platform().get('/account/~', {}).then(function(response){});
-        platform().get('/account/~/extension', {}).then(function(response){});
-        platform().get('/account/~/extension/~/call-log', {}).then(function(response){});
-        platform().get('/account/~/extension/~/message-store', {}).then(function(response){});
-        platform().get('/account/~/extension/~/presence', {}).then(function(response){});
-        platform().get('/dictionary/country', {}).then(function(response){});
-        platform().get('/oauth/authorize', {}).then(function(response){});
+    if( platform.auth().accessTokenValid() ) {
+        platform.get('/', {}).then(function(response){});
+        platform.get('/v1.0', {}).then(function(response){});
+        platform.get('/account/~', {}).then(function(response){});
+        platform.get('/account/~/extension', {}).then(function(response){});
+        platform.get('/account/~/extension/~/call-log', {}).then(function(response){});
+        platform.get('/account/~/extension/~/message-store', {}).then(function(response){});
+        platform.get('/account/~/extension/~/presence', {}).then(function(response){});
+        platform.get('/dictionary/country', {}).then(function(response){});
+        platform.get('/oauth/authorize', {}).then(function(response){});
     }
 }
 
