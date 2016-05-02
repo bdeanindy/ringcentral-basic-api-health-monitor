@@ -1,3 +1,8 @@
+'use strict';
+
+if('Production' !== process.env.MODE) {
+    require('dotenv').load();
+}
 var express = require('express');
 var path = require('path');
 var favicon = require('serve-favicon');
@@ -6,9 +11,56 @@ var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 
 var routes = require('./routes/index');
-var users = require('./routes/users');
 
+// VARS
+var RC = require('ringcentral');
+var routes = require('./routes');
 var app = express();
+var server = require('http').Server(app);
+
+// CONSTANTS
+const RC_API_BASE_URI = ('Production' === process.env.mode)
+    ? 'https://platform.ringcentral.com'
+    : 'https://platform.devtest.ringcentral.com'
+    ;
+
+const PORT = process.env.PORT || '3000';
+
+// Server and Utilities
+
+function errorLogger(e) {
+    console.error(e);
+    throw e;
+}
+
+function logIt(msg) {
+    console.log(msg);
+}
+
+// Setup RingCentral 
+var sdk = new RC({
+    server: RC_API_BASE_URI,
+    appKey: process.env.RC_APP_KEY,
+    appSecret: process.env.RC_APP_SECRET
+});
+
+var platform = sdk.platform()
+    .login({
+        username: process.env.RC_USERNAME,
+        password: process.env.RC_PASSWORD,
+        extension: process.env.RC_EXTENSION
+    })
+    .then(function(response) {
+        logIt('RingCentral successfully authenticated, access_token = ' + response.json().access_token);
+    })
+    .catch(errorLogger)
+    ;
+
+// Connect to the Database
+
+// Setup the scheduling rule
+
+// Define the API requests we want to execute according to the scheduling rule
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -23,7 +75,6 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', routes);
-app.use('/users', users);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
