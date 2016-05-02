@@ -9,6 +9,7 @@ var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
+var schedule = require('node-schedule');
 
 var routes = require('./routes/index');
 
@@ -44,7 +45,8 @@ var sdk = new RC({
     appSecret: process.env.RC_APP_SECRET
 });
 
-var platform = sdk.platform()
+var platform = sdk.platform();
+platform
     .login({
         username: process.env.RC_USERNAME,
         password: process.env.RC_PASSWORD,
@@ -56,11 +58,47 @@ var platform = sdk.platform()
     .catch(errorLogger)
     ;
 
+// Register Platform Event Listeners
+platform.on(platform.events.loginSuccess, rcAuthLog);
+platform.on(platform.events.loginError, rcAuthLog);
+platform.on(platform.events.refreshSuccess, rcAuthLog);
+platform.on(platform.events.refreshError, rcAuthLog);
+
+function rcAuthLog(data) {
+    logIt(data.json());
+    // TODO: Record in DB
+}
+
 // Connect to the Database
 
-// Setup the scheduling rule
+// Setup the scheduling rule ~ every 15 minutes
+var rule1 = new schedule.RecurrenceRule();
+rule1.minute = 14;
+schedule.scheduleJob(rule1, testPass);
+var rule2 = new schedule.RecurrenceRule();
+rule2.minute = 29;
+schedule.scheduleJob(rule2, testPass);
+var rule3 = new schedule.RecurrenceRule();
+rule3.minute = 44;
+schedule.scheduleJob(rule3, testPass);
+var rule4 = new schedule.RecurrenceRule();
+rule4.minute = 59;
+schedule.scheduleJob(rule4, testPass);
 
 // Define the API requests we want to execute according to the scheduling rule
+function testPass() {
+    if( platform().auth().accessTokenValid() ) {
+        platform().get('/', {}).then(function(response){});
+        platform().get('/v1.0', {}).then(function(response){});
+        platform().get('/account/~', {}).then(function(response){});
+        platform().get('/account/~/extension', {}).then(function(response){});
+        platform().get('/account/~/extension/~/call-log', {}).then(function(response){});
+        platform().get('/account/~/extension/~/message-store', {}).then(function(response){});
+        platform().get('/account/~/extension/~/presence', {}).then(function(response){});
+        platform().get('/dictionary/country', {}).then(function(response){});
+        platform().get('/oauth/authorize', {}).then(function(response){});
+    }
+}
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
