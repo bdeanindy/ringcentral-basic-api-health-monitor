@@ -16,6 +16,18 @@ var dbUriString = process.env.MONGODB_URI || process.env.MONGOLAB_URI || 'mongod
 var RC = require('ringcentral');
 var routes = require('./routes');
 var app = express();
+
+// Mongoose Schemas
+var logSchema = new mongoose.Schema({
+    when: String,
+    statusCode: String,
+    statusText: String,
+    url: String,
+    data: mongoose.Schema.Types.Mixed
+});
+var APIResponse = mongoose.model('APIResponse', logSchema);
+
+// Setup SparkPost
 var server = require('http').Server(app);
 var sparkpostClient = new SparkPost(); // Using the environment variable default
 
@@ -27,8 +39,14 @@ const RC_API_BASE_URI = ('Production' === process.env.mode)
 
 const PORT = process.env.PORT || '3000';
 
-// Server and Utilities
+const DEFAULT_ALERT_RECIPIENT = [{
+    address: {
+        email: process.env.DEFAULT_ALERT_EMAIL,
+        name: process.env.DEFAULT_ALERT_NAME
+    }
+}];
 
+// Server and Utilities
 function errorLogger(e) {
     console.error(e);
     throw e;
@@ -38,11 +56,40 @@ function logIt(msg) {
     console.log(msg);
 }
 
-// Mongoose Schemas
-var apiResponseSchema = new mongoose.Schema({
-    data: mongoose.Schema.Types.Mixed
-});
-var APIResponse = mongoose.model('APIResponse', apiResponseSchema);
+function isAlertError(httpStatus) {
+    var isErrorCodeRegex = /^([4|5][0-9]{2}){1}$/;
+    return isErrorCodeRegex.test(httpStatus);
+}
+
+function sendMail(options) {
+    options = options || {};
+    var spCID = options.campaignId || process.env.ALERT_CAMPAIGN_ID;
+    var spTID = options.templateId || process.env.ALERT_TEMPLATE_ID;
+    var spREC = options.recipients
+        ? options.recipients
+        : [{address:{email:process.env.DEFAULT_ALERT_EMAIL, name:process.env.DEFAULT_ALERT_NAME, result: options.data}}]
+        ;
+
+    logIt('Sending SparkPost Email...');
+    sparkpostClient.transmissions.send({
+        transmissionBody: {
+            campaignId: spCID ,
+            content: {
+                template_id: spTID
+            },
+            // Add additional recipient objects below as you need
+            // or modify the logic to use different lists
+            recipients: spREC
+        },
+        function(err, res) {
+            if(err) {
+                logIt('Unable to send email using SparkPost');
+            } else {
+                logIt('Notification email sent at: ' +new Date());
+            }
+        }
+    });
+}
 
 // Setup RingCentral 
 var sdk = new RC({
@@ -72,50 +119,41 @@ platform.on(platform.events.refreshSuccess, apiResponseLogger);
 platform.on(platform.events.refreshError, apiResponseLogger);
 
 function apiResponseLogger(apiResponseData) {
-    logIt('HTTP Status Code: ' + apiResponseData['_response']['status']);
-    // Error
-    if(200 !== apiResponseData['_response']['status'] || 'OK' !== apiResponseData['_response']['statusText'] || apiResponseData instanceof Error) {
-        // Send Notification Via SparkPost
-        sparkpostClient.transmissions.send({
-            transmissionBody: {
-                campaignId: 'RingCentralApiHealthNotification',
-                content: {
-                    template_id: 'ring-central-api-health-notification'
-                },
-                recipients: [
-                    {
-                        address: {
-                            email: 'benjamin.dean@ringcentral.com',
-                            name: 'Benjamin',
-                            result: apiResponseData
-                        }
-                    }
-                ]
-            },
-            function(err, res) {
-                if(err) {
-                    logIt('Unable to send email using SparkPost');
-                } else {
-                    logIt('Notification email sent at: ' +new Date());
-                }
-            }
-        });
-        logIt(apiResponseData);
-        apiResponseData = {when: +new Date(), "status": apiResponseData['_response']['status'], data: apiResponseData};
-    } else {
-        // High db space
-        //apiResponseData = {when: +new Date(), data: apiResponseData.json()};
-        // Low db space
-        apiResponseData = {when: +new Date(), "status": apiResponseData['_response']['status'], data: apiResponseData['_response']['url']};
+    logIt(apiResponseData);
+    logIt('Inside apiResponseLogger');
+    var response = apiResponseData['_response'];
+    var statusCode = response['status'];
+    var statusText = response['statusText'];
+    var url = response['url'];
+    var json = apiResponseData.json();
+    var when = +new Date();
+    var dataToSave = {};
+    var data = process.env.LOG_LEVEL
+        ? json
+        : url
+        ;
+
+    logIt('Status Code: ' + statusCode + ', isAlertError(statusCode): ' + isAlertError(statusCode));
+    logIt('url: ' + url);
+    logIt('when: ' + when);
+    logIt('statusText: ' + statusText);
+
+    if(isAlertError(statusCode)) {
+        logIt('Error: ' + statusCode + ' to: ' + url + ' at: ' + when);
+        dataToSave.when = when;
+        dataToSave.statusCode = statusCode;
+        dataToSave.statusText = statusText;
+        dataToSave.url = url;
+        dataToSave.data = data;
+        // TODO: Add some logic later to check the DB for thresholds used for determining if we alert or not, now...just send all errors
+        sendMail(); // Could provide more logic here, but good enough to start
     }
-    var response = new APIResponse({
-        data: apiResponseData
-    });
+    var response = new APIResponse(dataToSave);
     response.save(function(err) {
         if(err) {
             logIt('Error saving data!');
         } else {
-            logIt('Data saved');
+            logIt('Data saved to DB');
         }
     });
 }
@@ -142,16 +180,32 @@ var caller = setInterval(testPass, delay);
 
 // Define the API requests we want to execute according to the scheduling rule
 function testPass() {
+    logIt('testPass called');
+    var errors = [];
+    var calls = [
+        platform.get('/', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/v1.0', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/account/~', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/account/~/extension', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/account/~/extension/~/call-log', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/account/~/extension/~/message-store', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/account/~/extension/~/presence', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/dictionary/country', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/oauth/authorize', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger)
+    ];
     if( platform.auth().accessTokenValid() ) {
-        platform.get('/', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
-        platform.get('/v1.0', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
-        platform.get('/account/~', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
-        platform.get('/account/~/extension', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
-        platform.get('/account/~/extension/~/call-log', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
-        platform.get('/account/~/extension/~/message-store', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
-        platform.get('/account/~/extension/~/presence', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
-        platform.get('/dictionary/country', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
-        platform.get('/oauth/authorize', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
+        Promise.all(calls)
+        .then(function(responses) {
+            logIt('FUNK =========> ', responses);
+            logIt('testPass.errors: ', errors);
+            if(0 <= errors.length) {
+                errors.map(apiResponseLogger(response));
+            } else {
+                logIt('Everything worked');
+            }
+        },function(reason){
+            logIt('FAST FAIL REASON: ', reason);
+        });
     } else {
         var msg = 'Invalid RingCentral access_token, unable to execute testPass';
         logIt(msg);
