@@ -9,6 +9,7 @@ var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
+var SparkPost = require('sparkpost');
 
 // VARS
 var dbUriString = process.env.MONGODB_URI || process.env.MONGOLAB_URI || 'mongodb://localhost:27017/bdean-rc-basic';
@@ -16,6 +17,7 @@ var RC = require('ringcentral');
 var routes = require('./routes');
 var app = express();
 var server = require('http').Server(app);
+var sparkpostClient = new SparkPost(); // Using the environment variable default
 
 // CONSTANTS
 const RC_API_BASE_URI = ('Production' === process.env.mode)
@@ -73,7 +75,31 @@ function apiResponseLogger(apiResponseData) {
     logIt('HTTP Status Code: ' + apiResponseData['_response']['status']);
     // Error
     if(200 !== apiResponseData['_response']['status'] || 'OK' !== apiResponseData['_response']['statusText'] || apiResponseData instanceof Error) {
-        // TODO: Send notification using SparkPost
+        // Send Notification Via SparkPost
+        sparkpostClient.transmissions.send({
+            transmissionBody: {
+                campaignId: 'RingCentralApiHealthNotification',
+                content: {
+                    template_id: 'ring-central-api-health-notification'
+                },
+                recipients: [
+                    {
+                        address: {
+                            email: 'benjamin.dean@ringcentral.com',
+                            name: 'Benjamin',
+                            result: apiResponseData
+                        }
+                    }
+                ]
+            },
+            function(err, res) {
+                if(err) {
+                    logIt('Unable to send email using SparkPost');
+                } else {
+                    logIt('Notification email sent at: ' +new Date());
+                }
+            }
+        });
         logIt(apiResponseData);
         apiResponseData = {when: +new Date(), "status": apiResponseData['_response']['status'], data: apiResponseData};
     } else {
