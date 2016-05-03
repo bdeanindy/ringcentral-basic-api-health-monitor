@@ -65,9 +65,10 @@ function sendMail(options) {
     options = options || {};
     var spCID = options.campaignId || process.env.ALERT_CAMPAIGN_ID;
     var spTID = options.templateId || process.env.ALERT_TEMPLATE_ID;
+    var log = options.logs;
     var spREC = options.recipients
         ? options.recipients
-        : [{address:{email:process.env.DEFAULT_ALERT_EMAIL, name:process.env.DEFAULT_ALERT_NAME, result: options.data}}]
+        : [{address:{email:process.env.DEFAULT_ALERT_EMAIL, name:process.env.DEFAULT_ALERT_NAME, result: log}}]
         ;
 
     logIt('Sending SparkPost Email...');
@@ -119,13 +120,15 @@ platform.on(platform.events.refreshSuccess, apiResponseLogger);
 platform.on(platform.events.refreshError, apiResponseLogger);
 
 function apiResponseLogger(apiResponseData) {
-    logIt(apiResponseData);
+    //logIt(apiResponseData);
     logIt('Inside apiResponseLogger');
     var response = apiResponseData['_response'];
-    var statusCode = response['status'];
-    var statusText = response['statusText'];
-    var url = response['url'];
-    var json = apiResponseData.json();
+    var statusCode = apiResponseData['_response']['status'];
+    var statusText = apiResponseData['_response']['statusText'];
+    var url = apiResponseData['_response']['url'];
+    if(apiResponseData.json) {
+        var json = apiResponseData.json();
+    }
     var when = +new Date();
     var dataToSave = {};
     var data = process.env.LOG_LEVEL
@@ -146,7 +149,9 @@ function apiResponseLogger(apiResponseData) {
         dataToSave.url = url;
         dataToSave.data = data;
         // TODO: Add some logic later to check the DB for thresholds used for determining if we alert or not, now...just send all errors
-        sendMail(); // Could provide more logic here, but good enough to start
+        sendMail({log:JSON.stringify(apiResponseData)}); // Could provide more logic here, but good enough to start
+    } else {
+        logIt('apiResponseLogger should not be a failure');
     }
     var response = new APIResponse(dataToSave);
     response.save(function(err) {
@@ -183,33 +188,34 @@ function testPass() {
     logIt('testPass called');
     var errors = [];
     var calls = [
-        platform.get('/', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/v1.0', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/account/~', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/account/~/extension', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/account/~/extension/~/call-log', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/account/~/extension/~/message-store', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/account/~/extension/~/presence', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/dictionary/country', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/oauth/authorize', {}).then(function(response){errors.push(response);}).catch(apiResponseLogger)
+        platform.get('/').then(function(response){logIt('/ passed');}).catch(function(e){errors.push(e);}),
+        platform.get('/v1.0').then(function(response){logIt('/v1.0 passed');}).catch(function(e){errors.push(e);}),
+        /*
+        platform.get('/account/~').then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/account/~/extension/1247124').then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/account/~/extension/~/call-log').then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/account/~/extension/~/message-store').then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/account/~/extension/~/presence').then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        platform.get('/dictionary/country').then(function(response){errors.push(response);}).catch(apiResponseLogger),
+        //platform.get('/oauth/authorize').then(function(response){errors.push(response);}).catch(apiResponseLogger)
+        */
     ];
     if( platform.auth().accessTokenValid() ) {
+        logIt('Execute the Promise.all(calls)');
         Promise.all(calls)
         .then(function(responses) {
-            logIt('FUNK =========> ', responses);
-            logIt('testPass.errors: ', errors);
-            if(0 <= errors.length) {
-                errors.map(apiResponseLogger(response));
-            } else {
-                logIt('Everything worked');
-            }
+            logIt('Should be all good');
         },function(reason){
-            logIt('FAST FAIL REASON: ', reason);
+            logIt('FAST FAIL REASON: ' + reason);
         });
     } else {
         var msg = 'Invalid RingCentral access_token, unable to execute testPass';
         logIt(msg);
         apiResponseLogger({message: msg, when: +new Date()});
+    }
+    
+    if(0 < errors.length) {
+        logIt('ERRORS WITH YOUR REQUESTS, BUT NOT WITH THE API. FIX IT YO!');
     }
 }
 
