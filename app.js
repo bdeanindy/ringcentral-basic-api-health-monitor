@@ -73,11 +73,14 @@ function apiResponseLogger(apiResponseData) {
     logIt('HTTP Status Code: ' + apiResponseData['_response']['status']);
     // Error
     if(200 !== apiResponseData['_response']['status'] || 'OK' !== apiResponseData['_response']['statusText'] || apiResponseData instanceof Error) {
-        // TODO: Send notification
+        // TODO: Send notification using SparkPost
         logIt(apiResponseData);
-        apiResponseData = {message: 'Problem with RingCentral ApiUptime', when: +new Date(),  data: apiResponseData};
+        apiResponseData = {when: +new Date(), "status": apiResponseData['_response']['status'], data: apiResponseData};
     } else {
-        apiResponseData = {when: +new Date(), data: apiResponseData.json()};
+        // High db space
+        //apiResponseData = {when: +new Date(), data: apiResponseData.json()};
+        // Low db space
+        apiResponseData = {when: +new Date(), "status": apiResponseData['_response']['status'], data: apiResponseData['_response']['url']};
     }
     var response = new APIResponse({
         data: apiResponseData
