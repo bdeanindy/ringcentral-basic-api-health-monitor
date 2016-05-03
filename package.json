@@ -26,6 +26,7 @@
     "dotenv": "^2.0.0",
     "express": "~4.13.1",
     "jade": "~1.11.0",
+    "mongoose": "^4.4.14",
     "morgan": "~1.6.1",
     "node-schedule": "^1.1.0",
     "ringcentral": "^2.0.6",

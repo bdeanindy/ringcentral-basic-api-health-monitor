@@ -1,19 +1,17 @@
 'use strict';
 
-if('Production' !== process.env.MODE) {
-    require('dotenv').load();
-}
+// Dependencies
+if('Production' !== process.env.MODE) {require('dotenv').load();}
 var express = require('express');
 var path = require('path');
 var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
-var schedule = require('node-schedule');
-
-var routes = require('./routes/index');
+var mongoose = require('mongoose');
 
 // VARS
+var dbUriString = process.env.MONGODB_URI || process.env.MONGOLAB_URI || 'mongodb://localhost:27017/bdean-rc-basic';
 var RC = require('ringcentral');
 var routes = require('./routes');
 var app = express();
@@ -38,6 +36,12 @@ function logIt(msg) {
     console.log(msg);
 }
 
+// Mongoose Schemas
+var apiResponseSchema = new mongoose.Schema({
+    data: mongoose.Schema.Types.Mixed
+});
+var APIResponse = mongoose.model('APIResponse', apiResponseSchema);
+
 // Setup RingCentral 
 var sdk = new RC({
     server: RC_API_BASE_URI,
@@ -59,44 +63,70 @@ platform
     ;
 
 // Register Platform Event Listeners
-platform.on(platform.events.loginSuccess, rcAuthLog);
-platform.on(platform.events.loginError, rcAuthLog);
-platform.on(platform.events.refreshSuccess, rcAuthLog);
-platform.on(platform.events.refreshError, rcAuthLog);
+platform.on(platform.events.loginSuccess, apiResponseLogger);
+var routes = require('./routes/index');
+platform.on(platform.events.loginError, apiResponseLogger);
+platform.on(platform.events.refreshSuccess, apiResponseLogger);
+platform.on(platform.events.refreshError, apiResponseLogger);
 
-function rcAuthLog(data) {
-    logIt(data.json());
-    // TODO: Record in DB
+function apiResponseLogger(apiResponseData) {
+    logIt('HTTP Status Code: ' + apiResponseData['_response']['status']);
+    // Error
+    if(200 !== apiResponseData['_response']['status'] || 'OK' !== apiResponseData['_response']['statusText'] || apiResponseData instanceof Error) {
+        // TODO: Send notification
+        logIt(apiResponseData);
+        apiResponseData = {message: 'Problem with RingCentral ApiUptime', when: +new Date(),  data: apiResponseData};
+    } else {
+        apiResponseData = {when: +new Date(), data: apiResponseData.json()};
+    }
+    var response = new APIResponse({
+        data: apiResponseData
+    });
+    response.save(function(err) {
+        if(err) {
+            logIt('Error saving data!');
+        } else {
+            logIt('Data saved');
+        }
+    });
 }
 
 // Connect to the Database
+mongoose.connect( dbUriString, function( err, db ) {
+  if( err ) {
+    throw err;
+    return;
+  }
+  console.log('Connecting to database');
+});
 
-// Setup the scheduling rule ~ every 15 minutes
-var rule1 = new schedule.RecurrenceRule();
-rule1.minute = 14;
-schedule.scheduleJob(rule1, testPass);
-var rule2 = new schedule.RecurrenceRule();
-rule2.minute = 29;
-schedule.scheduleJob(rule2, testPass);
-var rule3 = new schedule.RecurrenceRule();
-rule3.minute = 44;
-schedule.scheduleJob(rule3, testPass);
-var rule4 = new schedule.RecurrenceRule();
-rule4.minute = 59;
-schedule.scheduleJob(rule4, testPass);
+var db = mongoose.connection;
+
+db.on('open', function() {
+    logIt('Connection to MongoDB has been established');
+});
+
+// Setup the scheduling rule ~ every 5 minutes
+var minutes = process.env.TEST_PASS_DELAY_IN_MINUTES || 10;
+var delay = 1000 * 60 * minutes;
+var caller = setInterval(testPass, delay);
 
 // Define the API requests we want to execute according to the scheduling rule
 function testPass() {
     if( platform.auth().accessTokenValid() ) {
-        platform.get('/', {}).then(function(response){});
-        platform.get('/v1.0', {}).then(function(response){});
-        platform.get('/account/~', {}).then(function(response){});
-        platform.get('/account/~/extension', {}).then(function(response){});
-        platform.get('/account/~/extension/~/call-log', {}).then(function(response){});
-        platform.get('/account/~/extension/~/message-store', {}).then(function(response){});
-        platform.get('/account/~/extension/~/presence', {}).then(function(response){});
-        platform.get('/dictionary/country', {}).then(function(response){});
-        platform.get('/oauth/authorize', {}).then(function(response){});
+        platform.get('/', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
+        platform.get('/v1.0', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
+        platform.get('/account/~', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
+        platform.get('/account/~/extension', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
+        platform.get('/account/~/extension/~/call-log', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
+        platform.get('/account/~/extension/~/message-store', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
+        platform.get('/account/~/extension/~/presence', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
+        platform.get('/dictionary/country', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
+        platform.get('/oauth/authorize', {}).then(function(response){apiResponseLogger(response);}).catch(apiResponseLogger);
+    } else {
+        var msg = 'Invalid RingCentral access_token, unable to execute testPass';
+        logIt(msg);
+        apiResponseLogger({message: msg, when: +new Date()});
     }
 }
 
