@@ -1,7 +1,7 @@
 {
-  "name": "bdean-rc-basic",
-  "version": "1.0.0",
-  "description": "Simple application to test all the Basic RC API endpoints using GET",
+  "name": "ringcentral-basic-api-health-monitor",
+  "version": "0.1.0",
+  "description": "Simple application to test your RingCentral API endpoints at specific intervals and receive notification via Sparkpost email if there are errors",
   "main": "index.js",
   "scripts": {
     "test": "mocha",
@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "http://git.ringcentral.com:8888/benjamin.dean/bdean-rc-basic.git"
+    "url": "https://github.com/bdeanindy/ringcentral-basic-api-health-monitor.git"
   },
   "keywords": [
     "RingCentral",
