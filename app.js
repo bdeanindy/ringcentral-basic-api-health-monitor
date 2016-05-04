@@ -9,27 +9,37 @@ var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
-var SparkPost = require('sparkpost');
+var Sparkpost = require('sparkpost');
 
 // VARS
-var dbUriString = process.env.MONGODB_URI || process.env.MONGOLAB_URI || 'mongodb://localhost:27017/bdean-rc-basic';
 var RC = require('ringcentral');
 var routes = require('./routes');
 var app = express();
+var subscription;
+var APILogSchema = require('./models/APILog');
+var common = require('./lib/common');
+var dbUriString = process.env.MONGODB_URI || process.env.MONGOLAB_URI || process.env.LOCAL_MONGO;
+const DEFAULT_ALERT_RECIPIENT = [{
+    address: {
+    }
+}];
 
-// Mongoose Schemas
-var logSchema = new mongoose.Schema({
-    when: String,
-    statusCode: String,
-    statusText: String,
-    url: String,
-    data: mongoose.Schema.Types.Mixed
+// Connect to database
+mongoose.connect(dbUriString);
+var db = mongoose.connection;
+
+// Mongo Connection Event Handlers
+db.on('open', function() {
+    common.logIt('Connection to MongoDB has been established');
 });
-var APIResponse = mongoose.model('APIResponse', logSchema);
 
-// Setup SparkPost
+db.on('error', function(err) {
+    common.logIt('Error connecting to MongoDB');
+    common.logIt(err);
+});
+
+// Mount Express
 var server = require('http').Server(app);
-var sparkpostClient = new SparkPost(); // Using the environment variable default
 
 // CONSTANTS
 const RC_API_BASE_URI = ('Production' === process.env.mode)
@@ -39,58 +49,8 @@ const RC_API_BASE_URI = ('Production' === process.env.mode)
 
 const PORT = process.env.PORT || '3000';
 
-const DEFAULT_ALERT_RECIPIENT = [{
-    address: {
-        email: process.env.DEFAULT_ALERT_EMAIL,
-        name: process.env.DEFAULT_ALERT_NAME
-    }
-}];
-
-// Server and Utilities
-function errorLogger(e) {
-    console.error(e);
-    throw e;
-}
-
-function logIt(msg) {
-    console.log(msg);
-}
-
-function isAlertError(httpStatus) {
-    var isErrorCodeRegex = /^([4|5][0-9]{2}){1}$/;
-    return isErrorCodeRegex.test(httpStatus);
-}
-
-function sendMail(options) {
-    options = options || {};
-    var spCID = options.campaignId || process.env.ALERT_CAMPAIGN_ID;
-    var spTID = options.templateId || process.env.ALERT_TEMPLATE_ID;
-    var log = options.logs;
-    var spREC = options.recipients
-        ? options.recipients
-        : [{address:{email:process.env.DEFAULT_ALERT_EMAIL, name:process.env.DEFAULT_ALERT_NAME, result: log}}]
-        ;
-
-    logIt('Sending SparkPost Email...');
-    sparkpostClient.transmissions.send({
-        transmissionBody: {
-            campaignId: spCID ,
-            content: {
-                template_id: spTID
-            },
-            // Add additional recipient objects below as you need
-            // or modify the logic to use different lists
-            recipients: spREC
-        },
-        function(err, res) {
-            if(err) {
-                logIt('Unable to send email using SparkPost');
-            } else {
-                logIt('Notification email sent at: ' +new Date());
-            }
-        }
-    });
-}
+// Setup SparkPost
+var sparkpostClient = new Sparkpost(); // Using the environment variable default
 
 // Setup RingCentral 
 var sdk = new RC({
@@ -107,116 +67,216 @@ platform
         extension: process.env.RC_EXTENSION
     })
     .then(function(response) {
-        logIt('RingCentral successfully authenticated, access_token = ' + response.json().access_token);
+        common.logIt('RingCentral successfully authenticated, access_token = ' + response.json().access_token);
+        initiateTests();
     })
-    .catch(errorLogger)
+    .catch(common.errorLogger)
     ;
 
-// Register Platform Event Listeners
-platform.on(platform.events.loginSuccess, apiResponseLogger);
-var routes = require('./routes/index');
-platform.on(platform.events.loginError, apiResponseLogger);
-platform.on(platform.events.refreshSuccess, apiResponseLogger);
-platform.on(platform.events.refreshError, apiResponseLogger);
+function apiResponseLogger(res) {
+    common.logIt('apiResponseLogger called...........');
+    var item;
+    if(res) {
+        if(res.message) {
+            // ERROR RESPONSE
+            common.logIt('IT IS AN ERROR');
+            console.error('ERROR MESSAGE: ' + res.message);
+            if(res.apiResponse) {
+                if(res.apiResponse.response) {
+                    item = res.apiResponse.response;
+                }
+                if(res.apiResponse._response) {
+                    item = res.apiResponse._response;
+                }
+            }
+        } else {
+            // GOOD RESPONSE
+            if(res.response) {
+                item = res.response;
+            }
+            if(res._response) {
+                item = res._response;
+            }
+            if(res.apiResponse) {
+                if(res.apiResponse.response) {
+                    item = res.apiResponse.response;
+                }
+                if(res.apiResponse._response) {
+                    item = res.apiResponse._response;
+                }
+            }
+            if(item) {
+                common.logIt('WE HAVE THE DATA WE NEED TO PROCESS THIS REQUEST');
+            }
+        }
+    }
 
-function apiResponseLogger(apiResponseData) {
-    //logIt(apiResponseData);
-    logIt('Inside apiResponseLogger');
-    var response = apiResponseData['_response'];
-    var statusCode = apiResponseData['_response']['status'];
-    var statusText = apiResponseData['_response']['statusText'];
-    var url = apiResponseData['_response']['url'];
-    if(apiResponseData.json) {
-        var json = apiResponseData.json();
+    if(item) {
+        var statusCode = item['status'];
+        var statusText = item['statusText'];
+        var url = item['url'];
+    } else {
+        common.logIt('Unable to parse data from response...');
+        var resType = typeof res;
+        common.logIt('RESPONSE TYPE IS....................(SEE BELOW)');
+        common.logIt(resType);
+        for(var prop in res) {
+            common.logIt('Property: ' + prop + ' is type: ' + typeof res[prop] + ', and is set to: ' + res[prop]);
+        }
     }
     var when = +new Date();
     var dataToSave = {};
-    var data = process.env.LOG_LEVEL
-        ? json
+    var data = (1 === process.env.LOG_LEVEL)
+        ? res.json()
         : url
         ;
 
-    logIt('Status Code: ' + statusCode + ', isAlertError(statusCode): ' + isAlertError(statusCode));
-    logIt('url: ' + url);
-    logIt('when: ' + when);
-    logIt('statusText: ' + statusText);
+    common.logIt('Status Code: ' + statusCode + ', isAlertError(statusCode): ' + common.isAlertError(statusCode));
+    common.logIt('url: ' + url);
+    common.logIt('when: ' + when);
+    common.logIt('statusText: ' + statusText);
+    common.logIt('data: ' + data);
 
-    if(isAlertError(statusCode)) {
-        logIt('Error: ' + statusCode + ' to: ' + url + ' at: ' + when);
+    // Only send emails when there are errors
+    if(common.isAlertError(statusCode)) {
+        var data = 'Error: ' + statusCode + ' to: ' + url + ' at: ' + when;
         dataToSave.when = when;
         dataToSave.statusCode = statusCode;
         dataToSave.statusText = statusText;
         dataToSave.url = url;
         dataToSave.data = data;
         // TODO: Add some logic later to check the DB for thresholds used for determining if we alert or not, now...just send all errors
-        sendMail({log:JSON.stringify(apiResponseData)}); // Could provide more logic here, but good enough to start
+        sendMail({log:JSON.stringify(dataToSave)}); // Could provide more logic here, but good enough to start
     } else {
-        logIt('apiResponseLogger should not be a failure');
+        common.logIt('apiResponseLogger should not be a failure');
     }
-    var response = new APIResponse(dataToSave);
+
+    // Save it to the database
+    var response = new APILogSchema(dataToSave);
     response.save(function(err) {
         if(err) {
-            logIt('Error saving data!');
+            common.logIt('Error saving data!');
         } else {
-            logIt('Data saved to DB');
+            common.logIt('Data saved to DB');
         }
     });
 }
 
-// Connect to the Database
-mongoose.connect( dbUriString, function( err, db ) {
-  if( err ) {
-    throw err;
-    return;
-  }
-  console.log('Connecting to database');
-});
+// Monitoring perpetual subscription
+subscription = sdk.createSubscription();
+subscription
+    .setEventFilters(['/account/~/extension/~/presence'])
+    .register()
+    ;
 
-var db = mongoose.connection;
-
-db.on('open', function() {
-    logIt('Connection to MongoDB has been established');
-});
-
-// Setup the scheduling rule ~ every 5 minutes
-var minutes = process.env.TEST_PASS_DELAY_IN_MINUTES || 10;
-var delay = 1000 * 60 * minutes;
-var caller = setInterval(testPass, delay);
+function initiateTests() {
+    // Setup the scheduling rule ~ every 5 minutes
+    var minutes = process.env.TEST_PASS_DELAY_IN_MINUTES || 10;
+    var delay = 1000 * 60 * minutes;
+    var testGetTimer = setInterval(testGET, delay);
+}
 
 // Define the API requests we want to execute according to the scheduling rule
-function testPass() {
-    logIt('testPass called');
-    var errors = [];
+function testGET() {
+    common.logIt('testGET called');
     var calls = [
-        platform.get('/').then(function(response){logIt('/ passed');}).catch(function(e){errors.push(e);}),
-        platform.get('/v1.0').then(function(response){logIt('/v1.0 passed');}).catch(function(e){errors.push(e);}),
+        '/',
+        '/v1.0',
+        '/account/~/extension',
+        '/account/~/extension/~/',
+        '/account/~/extension/12341234',
+        '/account/~/extension/~/call-log',
+        '/account/~/extension/~/message-store',
+        '/account/~/extension/~/presence',
+        '/dictionary/country',
+        '/oauth/authorize'
+    ];
+    if( platform.auth().accessTokenValid() ) {
+        common.logIt('Executing RC Platform requests');
+        platform.get('/').then(function(response){apiResponseLogger(response);}).catch(function(e){apiResponseLogger(e);});
+        platform.get('/v1.0').then(function(response){apiResponseLogger(response);}).catch(function(e){apiResponseLogger(e);});
+        platform.get('/account/~/extension/1247124').then(function(response){apiResponseLogger(response);}).catch(function(e){apiResponseLogger(e);});
         /*
         platform.get('/account/~').then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/account/~/extension/1247124').then(function(response){errors.push(response);}).catch(apiResponseLogger),
         platform.get('/account/~/extension/~/call-log').then(function(response){errors.push(response);}).catch(apiResponseLogger),
         platform.get('/account/~/extension/~/message-store').then(function(response){errors.push(response);}).catch(apiResponseLogger),
         platform.get('/account/~/extension/~/presence').then(function(response){errors.push(response);}).catch(apiResponseLogger),
         platform.get('/dictionary/country').then(function(response){errors.push(response);}).catch(apiResponseLogger),
         //platform.get('/oauth/authorize').then(function(response){errors.push(response);}).catch(apiResponseLogger)
         */
-    ];
-    if( platform.auth().accessTokenValid() ) {
-        logIt('Execute the Promise.all(calls)');
-        Promise.all(calls)
-        .then(function(responses) {
-            logIt('Should be all good');
-        },function(reason){
-            logIt('FAST FAIL REASON: ' + reason);
-        });
     } else {
         var msg = 'Invalid RingCentral access_token, unable to execute testPass';
-        logIt(msg);
+        common.logIt(msg);
         apiResponseLogger({message: msg, when: +new Date()});
     }
-    
-    if(0 < errors.length) {
-        logIt('ERRORS WITH YOUR REQUESTS, BUT NOT WITH THE API. FIX IT YO!');
-    }
+}
+
+// TODO
+function postPass() {
+}
+
+// TODO
+function putPass() {
+}
+
+// TODO
+function deletePass() {
+}
+
+// Send mail via SparkPost
+function sendMail(options) {
+    common.logIt('Sending SparkPost Email...');
+    options = options || {};
+    var spCID = options.campaignId || process.env.ALERT_CAMPAIGN_ID;
+    var spTID = options.templateId || process.env.ALERT_TEMPLATE_ID;
+    var log = options.logs;
+    var emailOpts = {
+        transmissionBody: {
+            campaignId: spCID ,
+            content: {
+                template_id: spTID
+            },
+            // Add additional recipient objects below as you need
+            recipients: [{address: {
+                email: process.env.DEFAULT_ALERT_EMAIL,
+                name: process.env.DEFAULT_ALERT_NAME,
+                result: 'REPLACE THIS WITH THE ACTUAL ERROR'
+                }
+            }]
+        }
+    };
+
+    sparkpostClient.transmissions.send(emailOpts, function(err, res) {
+        if(err) {
+            common.errorHandler(err);
+        } else {
+            common.logIt('Email sent as expected');
+        }
+    });
+}
+
+
+// EVENT HANDLERS
+// Register Platform Event Listeners
+platform.on(platform.events.loginSuccess, apiResponseLogger);
+platform.on(platform.events.loginError, apiResponseLogger);
+platform.on(platform.events.refreshSuccess, apiResponseLogger);
+platform.on(platform.events.refreshError, apiResponseLogger);
+platform.on(platform.events.refreshSuccess, apiResponseLogger);
+platform.on(platform.events.refreshError, apiResponseLogger);
+
+// Register Subscription Event Listeners
+subscription.on(subscription.events.notification, subscriptionEventLogger);
+subscription.on(subscription.events.removeSuccess, subscriptionEventLogger);
+subscription.on(subscription.events.removeError, subscriptionEventLogger);
+subscription.on(subscription.events.renewSuccess, subscriptionEventLogger);
+subscription.on(subscription.events.renewError, subscriptionEventLogger);
+subscription.on(subscription.events.subscribeSuccess, subscriptionEventLogger);
+subscription.on(subscription.events.subscribeError, subscriptionEventLogger);
+
+// TODO -- Need to inspect the data for subscriptions and format for logging
+function subscriptionEventLogger(evt) {
+    common.logIt(evt);
 }
 
 // view engine setup
