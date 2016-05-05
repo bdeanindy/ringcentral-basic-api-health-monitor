@@ -4,18 +4,28 @@ Simple application to notify you if there are error responses from your expected
 
 ## Prerequisites
 
-* Valid [RingCentral](https://developer.ringcentral.com) account with Platform API access
+* Valid [RingCentral](https://ringcentral.com) account with Platform API access
 * Valid [SparkPost](https://sparkpost.com) account with a configured sending domain
+* RingCentral Application defined in the [Developer Portal](https://developer.ringcentral.com)
+* RingCentral Sandbox Account (available in Developer Portal) created, and configured with at least one extension
+* SparkPost API Key (with appropriate permissions, see below)
+* RingCentral API Keys (with appropriate permissions, see below)
 * MongoDB installed locally (for development)
 * Node.js
 
-## Setup
+## Heroku Setup
 
 If you already have your SparkPost.com API Key and RingCentral API Keys created and available, you can use the Heroku One-Button Deployment
 
+**REMEMBER, you must have all the prerequisites to configure the app properly**
+
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
+## Manual Setup
+
 If you have do not have SparkPost.com API Key and RingCentral API Keys (or your accounts) you can follow the directions below to setup the application...
+
+Use the links in the [Prerequisites](Prerequisites) section to create your SparkPost.com and RingCentral / RingCentral Developer Portal accounts. Follow the documentation for each one, respectively, to learn more about each service.
 
 Nearly all the configuration is stored in the environment variables except the recipient list you send to with SparkPost and the RingCentral API requests you test.
 
@@ -47,3 +57,11 @@ For each new GET route you would like to test (I would recommend adding some bad
 ## Notification
 
 You could use the .csv file in the root of this repository (the Sparkpost recipients template) to create one or more lists which you could refer to as well. Might add this in later improvements.
+
+## License
+
+See [LICENSE](/LICENSE) file for complete information
+
+## Contributions
+
+You're welcome to submit issues and pull requests to this repository. No harsh rules, we can figure it out.
