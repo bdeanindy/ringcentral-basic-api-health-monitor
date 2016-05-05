@@ -1,4 +1,4 @@
-<img src="https://github-jobs.s3.amazonaws.com/b6496492-a905-11e5-90a0-ccc5e0424421.jpg" alt="RingCentral" width="250px" height="auto" /><img src="https://www.sparkpost.com/sites/all/themes/sparkpost/assets/images/sparkpost-logo.png" alt="SparkPost.com" width="250px" height="auto" />
+<a href="https://developer.ringcentral.com" title="RingCentral"  border="0"><img src="https://github-jobs.s3.amazonaws.com/b6496492-a905-11e5-90a0-ccc5e0424421.jpg" alt="RingCentral" width="250px" height="auto" /></a><a href="https://sparkpost.com" alt="SparkPost.com" title="SparkPost.com" border="0"><img src="https://www.sparkpost.com/sites/all/themes/sparkpost/assets/images/sparkpost-logo.png" alt="SparkPost.com" width="250px" height="auto" /></a>
 
 # RingCentral API Basic Health Monitor
 
