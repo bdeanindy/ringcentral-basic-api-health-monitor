@@ -1,5 +1,5 @@
 {
-    "name": "ringcentral-basic-api-health-monitor",
+    "name": "RingCentral API Monitor",
     "description": "This repository can be used as a basic RingCentral API health monitor",
     "repository": "https://github.com/bdeanindy/ringcentral-basic-api-health-monitor.git",
     "logo": "https://benjamindean.com/content/images/2013/Dec/BenjaminDeanLogo.png",
