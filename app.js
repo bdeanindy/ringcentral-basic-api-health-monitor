@@ -132,7 +132,7 @@ function apiResponseLogger(res) {
         : url
         ;
 
-    common.logIt('Status Code: ' + statusCode + ', isAlertError(statusCode): ' + common.isAlertError(statusCode));
+    //common.logIt('Status Code: ' + statusCode + ', isAlertError(statusCode): ' + common.isAlertError(statusCode));
     //common.logIt('url: ' + url);
     //common.logIt('when: ' + when);
     //common.logIt('statusText: ' + statusText);
@@ -147,7 +147,7 @@ function apiResponseLogger(res) {
         dataToSave.url = url;
         dataToSave.data = data;
         // TODO: Add some logic later to check the DB for thresholds used for determining if we alert or not, now...just send all errors
-        sendMail({log:data}); // Could provide more logic here, but good enough to start
+        sendMail({errorMessage:res.message}); // Could provide more logic here, but good enough to start
     } else {
         //common.logIt('apiResponseLogger should not be a failure');
     }
@@ -249,8 +249,10 @@ function sendMail(options) {
     options = options || {};
     var spCID = options.campaignId || process.env.ALERT_CAMPAIGN_ID;
     var spTID = options.templateId || process.env.ALERT_TEMPLATE_ID;
-    var log = options.logs;
-    if(!log) {log = 'Please see the database for errors, this one is undefined';}
+    options.errorMessage = options.errorMessage
+        ? options.errorMessage
+        : 'Please see the database for errors, this was undefined'
+        ;
     var emailOpts = {
         transmissionBody: {
             campaignId: spCID,
@@ -264,14 +266,14 @@ function sendMail(options) {
                 },
                 substitution_data: {
                     name: process.env.DEFAULT_ALERT_NAME,
-                    apiErrors: log
+                    apiErrors: options.errorMessage
                 }
             }],
             metadata: {
                 type: 'apiHealthMonitor'
             },
             substitution_data: {
-                apiErrors: log
+                apiErrors: options.errorMessage
             }
         }
     };
