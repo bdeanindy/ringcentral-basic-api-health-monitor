@@ -4,8 +4,8 @@ Simple application to notify you if there are error responses from your expected
 
 ## Prerequisites
 
-* Valid RingCentral account with Platform API access
-* Valid SparkPost account with a configured sending domain
+* Valid [RingCentral](https://developer.ringcentral.com) account with Platform API access
+* Valid [SparkPost](https://sparkpost.com) account with a configured sending domain
 * MongoDB installed locally (for development)
 * Node.js
 
