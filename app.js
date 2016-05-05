@@ -192,16 +192,16 @@ function initiateTests() {
 function testGET() {
     //common.logIt('testGET called');
     var calls = [
+        //'/v1.0',
+        //'/account/~/extension/1235151',
+        //'/oauth/authorize',
         '/',
-        '/v1.0',
         '/account/~/extension',
         '/account/~/extension/~/',
-        '/account/~/extension/12341234',
         '/account/~/extension/~/call-log',
         '/account/~/extension/~/message-store',
         '/account/~/extension/~/presence',
-        '/dictionary/country',
-        '/oauth/authorize'
+        '/dictionary/country'
     ];
 
     if( platform.auth().accessTokenValid() ) {
