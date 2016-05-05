@@ -12,6 +12,7 @@ Simple application to notify you if there are error responses from your expected
 ## Setup
 
 If you already have your SparkPost.com API Key and RingCentral API Keys created and available, you can use the Heroku One-Button Deployment
+
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
 If you have do not have SparkPost.com API Key and RingCentral API Keys (or your accounts) you can follow the directions below to setup the application...
