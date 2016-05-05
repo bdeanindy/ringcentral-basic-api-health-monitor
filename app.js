@@ -19,10 +19,7 @@ var subscription;
 var APILogSchema = require('./models/APILog');
 var common = require('./lib/common');
 var dbUriString = process.env.MONGODB_URI || process.env.MONGOLAB_URI || process.env.LOCAL_MONGO;
-const DEFAULT_ALERT_RECIPIENT = [{
-    address: {
-    }
-}];
+const LOG_LEVEL = process.env.LOG_LEVEL || 0;
 
 // Connect to database
 mongoose.connect(dbUriString);
@@ -106,9 +103,6 @@ function apiResponseLogger(res) {
                     item = res.apiResponse._response;
                 }
             }
-            if(item) {
-                //common.logIt('WE HAVE THE DATA WE NEED TO PROCESS THIS REQUEST');
-            }
         }
     }
 
@@ -121,16 +115,20 @@ function apiResponseLogger(res) {
         var resType = typeof res;
         //common.logIt('RESPONSE TYPE IS....................(SEE BELOW)');
         //common.logIt(resType);
-        for(var prop in res) {
-            common.logIt('Property: ' + prop + ' is type: ' + typeof res[prop] + ', and is set to: ' + res[prop]);
-        }
     }
+    var dataToSave = {}; // Use this to store the record for the DB
     var when = +new Date();
-    var dataToSave = {};
-    var data = (1 === process.env.LOG_LEVEL)
+    var msg = res.message || item.statusText;
+    var summary = 'Status: ' + String(statusCode) + ' to: ' + encodeURI(url) + ' at: ' + String(when) + ' message: ' + encodeURI(msg);
+    var data = (1 === LOG_LEVEL)
         ? res.json()
-        : url
+        : summary
         ;
+    dataToSave.when = when;
+    dataToSave.statusCode = statusCode;
+    dataToSave.statusText = statusText;
+    dataToSave.url = url;
+    dataToSave.data = data;
 
     //common.logIt('Status Code: ' + statusCode + ', isAlertError(statusCode): ' + common.isAlertError(statusCode));
     //common.logIt('url: ' + url);
@@ -140,28 +138,21 @@ function apiResponseLogger(res) {
 
     // Only send emails when there are errors
     if(common.isAlertError(statusCode)) {
-        var data = 'Error: ' + statusCode + ' to: ' + url + ' at: ' + when + ' message: ' + res.message;
-        dataToSave.when = when;
-        dataToSave.statusCode = statusCode;
-        dataToSave.statusText = statusText;
-        dataToSave.url = url;
-        dataToSave.data = data;
-        // TODO: Add some logic later to check the DB for thresholds used for determining if we alert or not, now...just send all errors
         sendMail({errorMessage:res.message}); // Could provide more logic here, but good enough to start
-    } else {
-        //common.logIt('apiResponseLogger should not be a failure');
     }
 
-    // Save it to the database
     var response = new APILogSchema(dataToSave);
     response.save(function(err) {
         if(err) {
-            common.logIt('Error saving data!');
+            common.errorLogger(err);
         } else {
-            //common.logIt('Data saved to DB');
+            if(1 === LOG_LEVEL) {
+                common.logIt('Data was saved to Mongo');
+            }
         }
     });
 }
+
 
 // Monitoring perpetual subscription
 function startSubscription() {
@@ -282,7 +273,7 @@ function sendMail(options) {
         if(err) {
             common.logIt(err);
         } else {
-            common.logIt('Email sent as expected');
+            //common.logIt('Email sent as expected');
         }
     });
 }
