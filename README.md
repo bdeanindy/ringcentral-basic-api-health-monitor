@@ -32,7 +32,7 @@ Nearly all the configuration is stored in the environment variables except the r
 
 `npm start`
 
-When you start the application without modifying any of the routes, you should receive three email messages with errors.
+When you start the application without modifying any of the routes being referenced, you should receive zero email alerts. If you would like to test that the errors are being delivered, just uncomment the three intentional errors in the `testGET` method near line 180, relaunch/redeploy the app and you should see error alerts.
 
 ## Adding new routes for testing
 
