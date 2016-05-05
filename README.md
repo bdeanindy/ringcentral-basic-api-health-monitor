@@ -2,8 +2,8 @@
 
 Simple application to notify you via SparkPost.com email if there are error responses from your expected RingCentral API requests.
 
-![RingCentral](http://www.ringcentral.com/content/dam/ringcentral/images/whyringcentral/ringcentral_logo.png)
-![SparkPost.com](https://www.sparkpost.com/sites/all/themes/sparkpost/assets/images/sparkpost-logo.png)
+![RingCentral](http://www.ringcentral.com/content/dam/ringcentral/images/whyringcentral/ringcentral_logo.png =250px)
+![SparkPost.com](https://www.sparkpost.com/sites/all/themes/sparkpost/assets/images/sparkpost-logo.png =250px)
 
 ## Prerequisites
 
