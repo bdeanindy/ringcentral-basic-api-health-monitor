@@ -68,18 +68,19 @@ platform
     })
     .then(function(response) {
         common.logIt('RingCentral successfully authenticated, access_token = ' + response.json().access_token);
+        startSubscription();
         initiateTests();
     })
     .catch(common.errorLogger)
     ;
 
 function apiResponseLogger(res) {
-    common.logIt('apiResponseLogger called...........');
+    //common.logIt('apiResponseLogger called...........');
     var item;
     if(res) {
         if(res.message) {
             // ERROR RESPONSE
-            common.logIt('IT IS AN ERROR');
+            //common.logIt('IT IS AN ERROR');
             console.error('ERROR MESSAGE: ' + res.message);
             if(res.apiResponse) {
                 if(res.apiResponse.response) {
@@ -106,7 +107,7 @@ function apiResponseLogger(res) {
                 }
             }
             if(item) {
-                common.logIt('WE HAVE THE DATA WE NEED TO PROCESS THIS REQUEST');
+                //common.logIt('WE HAVE THE DATA WE NEED TO PROCESS THIS REQUEST');
             }
         }
     }
@@ -116,10 +117,10 @@ function apiResponseLogger(res) {
         var statusText = item['statusText'];
         var url = item['url'];
     } else {
-        common.logIt('Unable to parse data from response...');
+        //common.logIt('Unable to parse data from response...');
         var resType = typeof res;
-        common.logIt('RESPONSE TYPE IS....................(SEE BELOW)');
-        common.logIt(resType);
+        //common.logIt('RESPONSE TYPE IS....................(SEE BELOW)');
+        //common.logIt(resType);
         for(var prop in res) {
             common.logIt('Property: ' + prop + ' is type: ' + typeof res[prop] + ', and is set to: ' + res[prop]);
         }
@@ -132,23 +133,23 @@ function apiResponseLogger(res) {
         ;
 
     common.logIt('Status Code: ' + statusCode + ', isAlertError(statusCode): ' + common.isAlertError(statusCode));
-    common.logIt('url: ' + url);
-    common.logIt('when: ' + when);
-    common.logIt('statusText: ' + statusText);
-    common.logIt('data: ' + data);
+    //common.logIt('url: ' + url);
+    //common.logIt('when: ' + when);
+    //common.logIt('statusText: ' + statusText);
+    //common.logIt('data: ' + data);
 
     // Only send emails when there are errors
     if(common.isAlertError(statusCode)) {
-        var data = 'Error: ' + statusCode + ' to: ' + url + ' at: ' + when;
+        var data = 'Error: ' + statusCode + ' to: ' + url + ' at: ' + when + ' message: ' + res.message;
         dataToSave.when = when;
         dataToSave.statusCode = statusCode;
         dataToSave.statusText = statusText;
         dataToSave.url = url;
         dataToSave.data = data;
         // TODO: Add some logic later to check the DB for thresholds used for determining if we alert or not, now...just send all errors
-        sendMail({log:JSON.stringify(dataToSave)}); // Could provide more logic here, but good enough to start
+        sendMail({log:data}); // Could provide more logic here, but good enough to start
     } else {
-        common.logIt('apiResponseLogger should not be a failure');
+        //common.logIt('apiResponseLogger should not be a failure');
     }
 
     // Save it to the database
@@ -157,17 +158,28 @@ function apiResponseLogger(res) {
         if(err) {
             common.logIt('Error saving data!');
         } else {
-            common.logIt('Data saved to DB');
+            //common.logIt('Data saved to DB');
         }
     });
 }
 
 // Monitoring perpetual subscription
-subscription = sdk.createSubscription();
-subscription
-    .setEventFilters(['/account/~/extension/~/presence'])
-    .register()
-    ;
+function startSubscription() {
+    subscription = sdk.createSubscription();
+    subscription
+        .setEventFilters(['/account/~/extension/~/presence'])
+        .register()
+        ;
+
+    // Register Subscription Event Listeners
+    subscription.on(subscription.events.notification, apiResponseLogger);
+    subscription.on(subscription.events.removeSuccess, apiResponseLogger);
+    subscription.on(subscription.events.removeError, apiResponseLogger);
+    subscription.on(subscription.events.renewSuccess, apiResponseLogger);
+    subscription.on(subscription.events.renewError, apiResponseLogger);
+    subscription.on(subscription.events.subscribeSuccess, apiResponseLogger);
+    subscription.on(subscription.events.subscribeError, apiResponseLogger);
+}
 
 function initiateTests() {
     // Setup the scheduling rule ~ every 5 minutes
@@ -178,7 +190,7 @@ function initiateTests() {
 
 // Define the API requests we want to execute according to the scheduling rule
 function testGET() {
-    common.logIt('testGET called');
+    //common.logIt('testGET called');
     var calls = [
         '/',
         '/v1.0',
@@ -191,19 +203,27 @@ function testGET() {
         '/dictionary/country',
         '/oauth/authorize'
     ];
+
     if( platform.auth().accessTokenValid() ) {
-        common.logIt('Executing RC Platform requests');
+        //common.logIt('Executing RC Platform requests');
+        calls.forEach(function(item, idx, array) {
+            platform.get(item)
+                .then(function(response){ apiResponseLogger(response); })
+                .catch(function(e){ apiResponseLogger(e); })
+                ;
+        });
+    /*
+    }
         platform.get('/').then(function(response){apiResponseLogger(response);}).catch(function(e){apiResponseLogger(e);});
         platform.get('/v1.0').then(function(response){apiResponseLogger(response);}).catch(function(e){apiResponseLogger(e);});
         platform.get('/account/~/extension/1247124').then(function(response){apiResponseLogger(response);}).catch(function(e){apiResponseLogger(e);});
-        /*
         platform.get('/account/~').then(function(response){errors.push(response);}).catch(apiResponseLogger),
         platform.get('/account/~/extension/~/call-log').then(function(response){errors.push(response);}).catch(apiResponseLogger),
         platform.get('/account/~/extension/~/message-store').then(function(response){errors.push(response);}).catch(apiResponseLogger),
         platform.get('/account/~/extension/~/presence').then(function(response){errors.push(response);}).catch(apiResponseLogger),
         platform.get('/dictionary/country').then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        //platform.get('/oauth/authorize').then(function(response){errors.push(response);}).catch(apiResponseLogger)
-        */
+        platform.get('/oauth/authorize').then(function(response){errors.push(response);}).catch(apiResponseLogger)
+    */
     } else {
         var msg = 'Invalid RingCentral access_token, unable to execute testPass';
         common.logIt(msg);
@@ -230,25 +250,35 @@ function sendMail(options) {
     var spCID = options.campaignId || process.env.ALERT_CAMPAIGN_ID;
     var spTID = options.templateId || process.env.ALERT_TEMPLATE_ID;
     var log = options.logs;
+    if(!log) {log = 'Please see the database for errors, this one is undefined';}
     var emailOpts = {
         transmissionBody: {
-            campaignId: spCID ,
+            campaignId: spCID,
             content: {
                 template_id: spTID
             },
             // Add additional recipient objects below as you need
             recipients: [{address: {
-                email: process.env.DEFAULT_ALERT_EMAIL,
-                name: process.env.DEFAULT_ALERT_NAME,
-                result: 'REPLACE THIS WITH THE ACTUAL ERROR'
+                    email: process.env.DEFAULT_ALERT_EMAIL,
+                    name: process.env.DEFAULT_ALERT_NAME
+                },
+                substitution_data: {
+                    name: process.env.DEFAULT_ALERT_NAME,
+                    apiErrors: log
                 }
-            }]
+            }],
+            metadata: {
+                type: 'apiHealthMonitor'
+            },
+            substitution_data: {
+                apiErrors: log
+            }
         }
     };
 
     sparkpostClient.transmissions.send(emailOpts, function(err, res) {
         if(err) {
-            common.errorHandler(err);
+            common.logIt(err);
         } else {
             common.logIt('Email sent as expected');
         }
@@ -264,20 +294,6 @@ platform.on(platform.events.refreshSuccess, apiResponseLogger);
 platform.on(platform.events.refreshError, apiResponseLogger);
 platform.on(platform.events.refreshSuccess, apiResponseLogger);
 platform.on(platform.events.refreshError, apiResponseLogger);
-
-// Register Subscription Event Listeners
-subscription.on(subscription.events.notification, subscriptionEventLogger);
-subscription.on(subscription.events.removeSuccess, subscriptionEventLogger);
-subscription.on(subscription.events.removeError, subscriptionEventLogger);
-subscription.on(subscription.events.renewSuccess, subscriptionEventLogger);
-subscription.on(subscription.events.renewError, subscriptionEventLogger);
-subscription.on(subscription.events.subscribeSuccess, subscriptionEventLogger);
-subscription.on(subscription.events.subscribeError, subscriptionEventLogger);
-
-// TODO -- Need to inspect the data for subscriptions and format for logging
-function subscriptionEventLogger(evt) {
-    common.logIt(evt);
-}
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));

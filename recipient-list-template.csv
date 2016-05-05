@@ -1,0 +1,1 @@
+email,name,return_path,metadata,substitution_data,tagsrecipient@example.com,Example Recipient,reply@example.com,"{""foo"": ""bar""}","{""member"": ""Platinum"", ""region"": ""US""}","[""test"", ""example""]"recipient2@example.com,Jake,reply@example.com,"{""foo"": ""bar""}","{""member"": ""Platinum"", ""region"": ""US""}","[""test"", ""example""]"
