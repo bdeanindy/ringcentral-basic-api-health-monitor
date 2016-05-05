@@ -1,0 +1,79 @@
+{
+    "name": "ringcentral-basic-api-health-monitor",
+    "description": "This repository can be used as a basic RingCentral API health monitor",
+    "repository": "https://github.com/bdeanindy/ringcentral-basic-api-health-monitor.git",
+    "logo": "https://benjamindean.com/content/images/2013/Dec/BenjaminDeanLogo.png",
+    "keywords": ["RignCentral","SparkPost","API","API Health","Monitoring","Alerts"],
+    "website": "https://developer.ringcentral.com",
+    "addons": [
+        "mongolab:sandbox"
+    ],
+    "formation": {
+        "web": {
+            "quantity": 1,
+            "size": "Hobby"
+        }
+    },
+    "env": {
+        "RC_USERNAME": {
+            "description": "Your RingCentral Username/Phone - ex: 12225551919 - Do not use a plus sign or any special characters...only the numbers",
+            "value": "",
+            "required": true
+        },
+        "RC_PASSWORD": {
+            "description": "Your RingCentral Password",
+            "value": "",
+            "required": true
+        },
+        "RC_APP_KEY": {
+            "description": "Your RingCentral Developer Portal Application Key. This value is available by viewing your app->Credentials on: https://developer.ringcentral.com",
+            "value": "",
+            "required": true
+        },
+        "RC_APP_SECRET": {
+            "description": "Your RingCentral Developer Portal Application Secret. This value is available by viewing your app->Credentials on: https://developer.ringcentral.com",
+            "value": "",
+            "required": true
+        },
+        "RC_ENVIRONMENT": {
+            "description": "The RingCentral API environment. The default is 'Sandbox'. The only other value is Production",
+            "value": "Sandbox",
+            "required": true
+        },
+        "SPARKPOST_API_KEY": {
+            "description": "Your SparkPost API key. This value is available at https://sparkpost.com - Signup and get 100K emails/month for free!",
+            "value": "",
+            "required": true
+        },
+        "ALERT_TEMPLATE_ID": {
+            "description": "Create a template in your SparkPost account and place the ID (not the name) here",
+            "value": "",
+            "required": true
+        },
+        "ALERT_CAMPAIGN_ID": {
+            "description": "This is a string you can use to filter your email reports in SparkPost.",
+            "value": "ringcentralApiAlerts",
+            "required": true
+        },
+        "DEFAULT_ALERT_EMAIL": {
+            "description": "Set this to the email address where you want the email to go if you do not modify the app.js script",
+            "value": "you@example.com",
+            "required": true
+        },
+        "DEFAULT_ALERT_NAME": {
+            "description": "Set this to your first name",
+            "value": "Benjamin",
+            "required": true
+        },
+        "TEST_PASS_DELAY_IN_MINUTES": {
+            "description": "This is the delay value for the tests requests to the RingCentral API to execute. Anything less than 10 minutes can cause 429 throttling errors",
+            "value": "10",
+            "required": true
+        },
+        "LOG_LEVEL": {
+            "description": "0 === Smaller database log data, 1 === Larger database log data",
+            "value": "0",
+            "required": true
+        }
+    }
+}
