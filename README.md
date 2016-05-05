@@ -1,6 +1,9 @@
 # RingCentral API Basic Health Monitor
 
-Simple application to notify you if there are error responses from your expected RingCentral API requests
+Simple application to notify you via SparkPost.com email if there are error responses from your expected RingCentral API requests.
+
+![RingCentral](http://www.ringcentral.com/content/dam/ringcentral/images/whyringcentral/ringcentral_logo.png)
+![SparkPost.com](https://www.sparkpost.com/sites/all/themes/sparkpost/assets/images/sparkpost-logo.png)
 
 ## Prerequisites
 
@@ -11,6 +14,7 @@ Simple application to notify you if there are error responses from your expected
 * SparkPost API Key (with appropriate permissions, see below)
 * RingCentral API Keys (with appropriate permissions, see below)
 * MongoDB installed locally (for development)
+* Optionally - a Heroku account
 * Node.js
 
 ## Heroku Setup
