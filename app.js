@@ -10,8 +10,6 @@ var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
 var Sparkpost = require('sparkpost');
-
-// VARS
 var RC = require('ringcentral');
 var routes = require('./routes');
 var app = express();
@@ -19,6 +17,7 @@ var subscription;
 var APILogSchema = require('./models/APILog');
 var common = require('./lib/common');
 var dbUriString = process.env.MONGODB_URI || process.env.MONGOLAB_URI || process.env.LOCAL_MONGO;
+
 const LOG_LEVEL = process.env.LOG_LEVEL || 0;
 
 // Connect to database
@@ -27,12 +26,12 @@ var db = mongoose.connection;
 
 // Mongo Connection Event Handlers
 db.on('open', function() {
-    common.logIt('Connection to MongoDB has been established');
+    common.notify('Connection to MongoDB has been established');
 });
 
 db.on('error', function(err) {
-    common.logIt('Error connecting to MongoDB');
-    common.logIt(err);
+    common.notify('Error connecting to MongoDB');
+    common.notify(err);
 });
 
 // Mount Express
@@ -64,21 +63,19 @@ platform
         extension: process.env.RC_EXTENSION
     })
     .then(function(response) {
-        common.logIt('RingCentral successfully authenticated, access_token = ' + response.json().access_token);
-        startSubscription();
-        initiateTests();
+        common.logger('RingCentral successfully authenticated, access_token = ' + response.json().access_token);
     })
     .catch(common.errorLogger)
     ;
 
 function apiResponseLogger(res) {
-    //common.logIt('apiResponseLogger called...........');
+    common.notify('apiResponseLogger called...........');
     var item;
     if(res) {
         if(res.message) {
             // ERROR RESPONSE
-            //common.logIt('IT IS AN ERROR');
-            console.error('ERROR MESSAGE: ' + res.message);
+            common.notify('IT IS AN ERROR');
+            common.errorLogger('ERROR MESSAGE: ' + res.message);
             if(res.apiResponse) {
                 if(res.apiResponse.response) {
                     item = res.apiResponse.response;
@@ -111,11 +108,12 @@ function apiResponseLogger(res) {
         var statusText = item['statusText'];
         var url = item['url'];
     } else {
-        //common.logIt('Unable to parse data from response...');
+        common.notify('Unable to parse data from response...');
         var resType = typeof res;
-        //common.logIt('RESPONSE TYPE IS....................(SEE BELOW)');
-        //common.logIt(resType);
+        common.notify('RESPONSE TYPE IS....................(SEE BELOW)');
+        common.notify(resType);
     }
+
     var dataToSave = {}; // Use this to store the record for the DB
     var when = +new Date();
     var msg = res.message || item.statusText;
@@ -130,11 +128,11 @@ function apiResponseLogger(res) {
     dataToSave.url = url;
     dataToSave.data = data;
 
-    //common.logIt('Status Code: ' + statusCode + ', isAlertError(statusCode): ' + common.isAlertError(statusCode));
-    //common.logIt('url: ' + url);
-    //common.logIt('when: ' + when);
-    //common.logIt('statusText: ' + statusText);
-    //common.logIt('data: ' + data);
+    common.notify('Status Code: ' + statusCode + ', isAlertError(statusCode): ' + common.isAlertError(statusCode));
+    common.notify('url: ' + url);
+    common.notify('when: ' + when);
+    common.notify('statusText: ' + statusText);
+    common.notify('data: ' + data);
 
     // Only send emails when there are errors
     if(common.isAlertError(statusCode)) {
@@ -146,34 +144,14 @@ function apiResponseLogger(res) {
         if(err) {
             common.errorLogger(err);
         } else {
-            if(1 === LOG_LEVEL) {
-                common.logIt('Data was saved to Mongo');
-            }
+            common.notify('Data was saved to Mongo');
         }
     });
 }
 
 
-// Monitoring perpetual subscription
-function startSubscription() {
-    subscription = sdk.createSubscription();
-    subscription
-        .setEventFilters(['/account/~/extension/~/presence'])
-        .register()
-        ;
-
-    // Register Subscription Event Listeners
-    subscription.on(subscription.events.notification, apiResponseLogger);
-    subscription.on(subscription.events.removeSuccess, apiResponseLogger);
-    subscription.on(subscription.events.removeError, apiResponseLogger);
-    subscription.on(subscription.events.renewSuccess, apiResponseLogger);
-    subscription.on(subscription.events.renewError, apiResponseLogger);
-    subscription.on(subscription.events.subscribeSuccess, apiResponseLogger);
-    subscription.on(subscription.events.subscribeError, apiResponseLogger);
-}
-
 function initiateTests() {
-    // Setup the scheduling rule ~ every 5 minutes
+    common.notify('InitiateTests has been called...');
     var minutes = process.env.TEST_PASS_DELAY_IN_MINUTES || 10;
     var delay = 1000 * 60 * minutes;
     var testGetTimer = setInterval(testGET, delay);
@@ -181,7 +159,8 @@ function initiateTests() {
 
 // Define the API requests we want to execute according to the scheduling rule
 function testGET() {
-    //common.logIt('testGET called');
+    common.notify('testGET has been called...');
+    //common.notify('testGET called');
     var calls = [
         //'/v1.0',
         //'/account/~/extension/1235151',
@@ -196,29 +175,21 @@ function testGET() {
     ];
 
     if( platform.auth().accessTokenValid() ) {
-        //common.logIt('Executing RC Platform requests');
+        //common.notify('Executing RC Platform requests');
         calls.forEach(function(item, idx, array) {
             platform.get(item)
                 .then(function(response){ apiResponseLogger(response); })
                 .catch(function(e){ apiResponseLogger(e); })
                 ;
         });
-    /*
-    }
-        platform.get('/').then(function(response){apiResponseLogger(response);}).catch(function(e){apiResponseLogger(e);});
-        platform.get('/v1.0').then(function(response){apiResponseLogger(response);}).catch(function(e){apiResponseLogger(e);});
-        platform.get('/account/~/extension/1247124').then(function(response){apiResponseLogger(response);}).catch(function(e){apiResponseLogger(e);});
-        platform.get('/account/~').then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/account/~/extension/~/call-log').then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/account/~/extension/~/message-store').then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/account/~/extension/~/presence').then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/dictionary/country').then(function(response){errors.push(response);}).catch(apiResponseLogger),
-        platform.get('/oauth/authorize').then(function(response){errors.push(response);}).catch(apiResponseLogger)
-    */
     } else {
         var msg = 'Invalid RingCentral access_token, unable to execute testPass';
-        common.logIt(msg);
+        common.notify(msg);
         apiResponseLogger({message: msg, when: +new Date()});
+
+        platform.loggedIn().then(function(state) {common.notify('Logged In State: ' + state);});
+        platform.refresh();
+        common.notify('Refreshing the RC via platform.refresh()');
     }
 }
 
@@ -236,7 +207,7 @@ function deletePass() {
 
 // Send mail via SparkPost
 function sendMail(options) {
-    common.logIt('Sending SparkPost Email...');
+    common.notify('Sending SparkPost Email...');
     options = options || {};
     var spCID = options.campaignId || process.env.ALERT_CAMPAIGN_ID;
     var spTID = options.templateId || process.env.ALERT_TEMPLATE_ID;
@@ -271,22 +242,97 @@ function sendMail(options) {
 
     sparkpostClient.transmissions.send(emailOpts, function(err, res) {
         if(err) {
-            common.logIt(err);
+            common.errorLogger(err);
         } else {
-            //common.logIt('Email sent as expected');
+            common.notify('Email sent as expected');
+            common.notify(res);
         }
     });
 }
 
+// Monitoring perpetual subscription
+function startSubscription() {
+    common.notify('startSubscription has been called...');
+    subscription = sdk.createSubscription();
+    subscription
+        .setEventFilters(['/account/~/extension/~/presence'])
+        .register()
+        ;
+
+    // Register Subscription Event Listeners
+    subscription.on(subscription.events.notification, apiResponseLogger);
+    subscription.on(subscription.events.removeSuccess, apiResponseLogger);
+    subscription.on(subscription.events.removeError, subscriptionRemoveErrorHandler);
+    subscription.on(subscription.events.renewSuccess, apiResponseLogger);
+    subscription.on(subscription.events.renewError, subscriptionRenewErrorHandler);
+    subscription.on(subscription.events.subscribeSuccess, apiResponseLogger);
+    subscription.on(subscription.events.subscribeError, subscriptionErrorHandler);
+}
 
 // EVENT HANDLERS
 // Register Platform Event Listeners
-platform.on(platform.events.loginSuccess, apiResponseLogger);
-platform.on(platform.events.loginError, apiResponseLogger);
-platform.on(platform.events.refreshSuccess, apiResponseLogger);
-platform.on(platform.events.refreshError, apiResponseLogger);
-platform.on(platform.events.refreshSuccess, apiResponseLogger);
-platform.on(platform.events.refreshError, apiResponseLogger);
+platform.on(platform.events.loginSuccess, loginSuccessHandler);
+platform.on(platform.events.loginError, loginErrorHandler);
+platform.on(platform.events.logoutSuccess, apiResponseLogger);
+platform.on(platform.events.logoutError, logoutErrorHandler);
+platform.on(platform.events.refreshSuccess, refreshSuccessHandler);
+platform.on(platform.events.refreshError, refreshErrorHandler);
+
+// access_token
+function loginSuccessHandler(e) {
+    console.log('SUCCESS HANDLER');
+    common.notify('RC Platform LOGIN HANDLER');
+    startSubscription();
+    initiateTests();
+    apiResponseLogger(e);
+}
+
+function loginErrorHandler(e) {
+    common.errorLogger('RC Platform unable to login...');
+    common.errorLogger(e);
+    apiResponseLogger(e);
+}
+
+function logoutErrorHandler(e) {
+    common.errorLogger('RC Platform unable to logout...');
+    common.errorLogger(e);
+    apiResponseLogger(e);
+}
+
+function refreshErrorHandler(e) {
+    common.errorLogger('RC access_token unable to refresh...');
+    common.errorLogger(e);
+    apiResponseLogger(e);
+}
+
+function refreshSuccessHandler(e) {
+    common.logger('RC access_token REFRESHED!');
+    apiResponseLogger(e);
+}
+
+// subscription_token
+function subscriptionRemoveErrorHandler(e) {
+    common.errorLogger('Subscription Removal Error...');
+    common.errorLogger(e);
+    apiResponseLogger(e);
+}
+
+function subscriptionRenewErrorHandler(e) {
+    common.errorLogger('Subscription Renewal Error...');
+    common.errorLogger(e);
+    apiResponseLogger(e);
+}
+
+function subscriptionErrorHandler(e) {
+    common.errorLogger('Subscription Error...');
+    common.errorLogger(e);
+    apiResponseLogger(e);
+}
+
+function subscriptionRenewSuccessHandler(e) {
+    common.notify('Subscription RENEWED!');
+    apiResponseLogger(e);
+}
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
