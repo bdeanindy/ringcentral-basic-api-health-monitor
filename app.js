@@ -160,7 +160,23 @@ function initiateTests() {
 // Define the API requests we want to execute according to the scheduling rule
 function testGET() {
     common.notify('testGET has been called...');
-    //common.notify('testGET called');
+
+    /* TODO: Use this for later...
+    // Setup the start date as the first of the year
+    var dateFrom = new Date(2016,0,1,0,0,0);
+    var dateFromIso = dateFrom.toISOString();
+
+    // Setup the to date to be today
+    var dateTo = new Date();
+    var dateToIso = dateTo.toISOString();
+
+    var getCallRecordingPath = '/account/~/call-log?withRecording=true';
+    getCallRecordingPath += '&dateTo=' + dateToIso.replace(/\:/g,'%3A');
+    getCallRecordingPath += '&dateFrom=' + dateFromIso.replace(/\:/g,'%3A');
+    common.notify('Call Recording Path: ' + getCallRecordingPath);
+    */
+
+    // List of routes to test against
     var calls = [
         //'/v1.0',
         //'/account/~/extension/1235151',
@@ -169,6 +185,7 @@ function testGET() {
         '/account/~/extension',
         '/account/~/extension/~/',
         '/account/~/extension/~/call-log',
+        '/account/~/recording/' + process.env.CALL_LOG_RECORDING_ID,
         '/account/~/extension/~/message-store',
         '/account/~/extension/~/presence',
         '/dictionary/country'
